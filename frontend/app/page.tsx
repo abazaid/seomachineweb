@@ -88,18 +88,18 @@ export default function HomePage() {
       const data = await apiCall<{
         ga4_property_id: string;
         gsc_site_url: string;
-        dataforseo_login: string;
-        dataforseo_password: string;
+        dataforseo_login_masked: string;
+        dataforseo_password_masked: string;
         ai_provider: string;
-        ai_api_key: string;
+        ai_api_key_masked: string;
       }>('/settings', 'GET', authToken);
       setSettings({
         ga4_property_id: data.ga4_property_id || '',
         gsc_site_url: data.gsc_site_url || '',
-        dataforseo_login: data.dataforseo_login || '',
-        dataforseo_password: data.dataforseo_password || '',
+        dataforseo_login: data.dataforseo_login_masked || '',
+        dataforseo_password: data.dataforseo_password_masked || '',
         ai_provider: data.ai_provider || '',
-        ai_api_key: data.ai_api_key || '',
+        ai_api_key: data.ai_api_key_masked || '',
       });
     } catch {
       // Keep form defaults if settings are unavailable.
@@ -114,7 +114,24 @@ export default function HomePage() {
   const saveSettings = async () => {
     setError('');
     try {
-      await apiCall('/settings', 'PUT', token, settings);
+      const payload: Record<string, string> = {};
+
+      if (settings.ga4_property_id.trim()) payload.ga4_property_id = settings.ga4_property_id.trim();
+      if (settings.gsc_site_url.trim()) payload.gsc_site_url = settings.gsc_site_url.trim();
+      if (settings.ai_provider.trim()) payload.ai_provider = settings.ai_provider.trim();
+
+      if (settings.dataforseo_login.trim() && !settings.dataforseo_login.includes('*')) {
+        payload.dataforseo_login = settings.dataforseo_login.trim();
+      }
+      if (settings.dataforseo_password.trim() && !settings.dataforseo_password.includes('*')) {
+        payload.dataforseo_password = settings.dataforseo_password.trim();
+      }
+      if (settings.ai_api_key.trim() && !settings.ai_api_key.includes('*')) {
+        payload.ai_api_key = settings.ai_api_key.trim();
+      }
+
+      await apiCall('/settings', 'PUT', token, payload);
+      await loadSettings(token);
       alert('Settings saved successfully');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save settings failed');
