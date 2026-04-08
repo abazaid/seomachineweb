@@ -1,0 +1,23 @@
+FROM node:20-alpine AS deps
+WORKDIR /app/frontend
+COPY frontend/package.json /app/frontend/package.json
+RUN npm install
+
+FROM node:20-alpine AS builder
+WORKDIR /app/frontend
+ARG NEXT_PUBLIC_API_BASE
+ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
+COPY --from=deps /app/frontend/node_modules /app/frontend/node_modules
+COPY frontend /app/frontend
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app/frontend
+ARG NEXT_PUBLIC_API_BASE
+ENV NODE_ENV=production
+ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
+COPY --from=builder /app/frontend/.next /app/frontend/.next
+COPY --from=builder /app/frontend/public /app/frontend/public
+COPY --from=builder /app/frontend/package.json /app/frontend/package.json
+COPY --from=deps /app/frontend/node_modules /app/frontend/node_modules
+CMD ["npm", "run", "start"]

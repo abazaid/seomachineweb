@@ -1,0 +1,117 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-seomachine}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-seomachine}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS}
+      GA4_PROPERTY_ID: ${GA4_PROPERTY_ID}
+      GA4_CREDENTIALS_PATH: ${GA4_CREDENTIALS_PATH}
+      GSC_SITE_URL: ${GSC_SITE_URL}
+      GSC_CREDENTIALS_PATH: ${GSC_CREDENTIALS_PATH}
+      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN}
+      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD}
+      DATAFORSEO_LOCATION_CODE: ${DATAFORSEO_LOCATION_CODE:-2682}
+      DATAFORSEO_LANGUAGE_CODE: ${DATAFORSEO_LANGUAGE_CODE:-ar}
+      DATAFORSEO_LANGUAGE_NAME: ${DATAFORSEO_LANGUAGE_NAME:-Arabic}
+      DATAFORSEO_DEVICE: ${DATAFORSEO_DEVICE:-desktop}
+      DATAFORSEO_OS: ${DATAFORSEO_OS:-windows}
+      BLOG_PATH: ${BLOG_PATH:-/blog/}
+      PYTHONPATH: /app/backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY}
+      GA4_PROPERTY_ID: ${GA4_PROPERTY_ID}
+      GA4_CREDENTIALS_PATH: ${GA4_CREDENTIALS_PATH}
+      GSC_SITE_URL: ${GSC_SITE_URL}
+      GSC_CREDENTIALS_PATH: ${GSC_CREDENTIALS_PATH}
+      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN}
+      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD}
+      DATAFORSEO_LOCATION_CODE: ${DATAFORSEO_LOCATION_CODE:-2682}
+      DATAFORSEO_LANGUAGE_CODE: ${DATAFORSEO_LANGUAGE_CODE:-ar}
+      DATAFORSEO_LANGUAGE_NAME: ${DATAFORSEO_LANGUAGE_NAME:-Arabic}
+      DATAFORSEO_DEVICE: ${DATAFORSEO_DEVICE:-desktop}
+      DATAFORSEO_OS: ${DATAFORSEO_OS:-windows}
+      BLOG_PATH: ${BLOG_PATH:-/blog/}
+      PYTHONPATH: /app/backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
