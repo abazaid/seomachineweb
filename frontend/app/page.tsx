@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 type User = { id: number; email: string; full_name: string; role: string };
 type Provider = { provider: string; status: string; message: string };
@@ -63,8 +63,8 @@ export default function HomePage() {
   const [contentItems, setContentItems] = useState<Content[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
-  const [keyword, setKeyword] = useState('??? ???? ???????');
-  const [contentTitle, setContentTitle] = useState('???? ?????? ??? ???? ???????');
+  const [keyword, setKeyword] = useState('Best vape products');
+  const [contentTitle, setContentTitle] = useState('Top Vape Guide for Beginners');
 
   const isAdmin = useMemo(() => user?.role === 'admin', [user?.role]);
 
@@ -83,11 +83,39 @@ export default function HomePage() {
     }
   };
 
+  const loadSettings = async (authToken: string) => {
+    try {
+      const data = await apiCall<{
+        ga4_property_id: string;
+        gsc_site_url: string;
+        dataforseo_login: string;
+        dataforseo_password: string;
+        ai_provider: string;
+        ai_api_key: string;
+      }>('/settings', 'GET', authToken);
+      setSettings({
+        ga4_property_id: data.ga4_property_id || '',
+        gsc_site_url: data.gsc_site_url || '',
+        dataforseo_login: data.dataforseo_login || '',
+        dataforseo_password: data.dataforseo_password || '',
+        ai_provider: data.ai_provider || '',
+        ai_api_key: data.ai_api_key || '',
+      });
+    } catch {
+      // Keep form defaults if settings are unavailable.
+    }
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    void loadSettings(token);
+  }, [token]);
+
   const saveSettings = async () => {
     setError('');
     try {
       await apiCall('/settings', 'PUT', token, settings);
-      alert('?? ??? ????????? ?????');
+      alert('Settings saved successfully');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save settings failed');
     }
@@ -175,12 +203,12 @@ export default function HomePage() {
   };
 
   const draftContent = async (contentId: number) => {
-    await apiCall(`/content/${contentId}/draft`, 'POST', token, { notes: '????? ????? ?????' });
+    await apiCall(`/content/${contentId}/draft`, 'POST', token, { notes: 'Draft generated from brief' });
     await loadContent();
   };
 
   const optimizeContent = async (contentId: number) => {
-    await apiCall(`/content/${contentId}/optimize`, 'POST', token, { notes: '????? SEO' });
+    await apiCall(`/content/${contentId}/optimize`, 'POST', token, { notes: 'SEO optimization pass' });
     await loadContent();
   };
 
@@ -199,7 +227,7 @@ export default function HomePage() {
     if (!selectedReport) return;
     await apiCall(`/publishing/export/report/${selectedReport.id}?format=${format}`, 'POST', token);
     await loadAuditLogs();
-    alert('?? ??????? ?????');
+    alert('Export completed');
   };
 
   const loadAuditLogs = async () => {
@@ -216,18 +244,18 @@ export default function HomePage() {
 
       {!token ? (
         <section className="card" style={{ maxWidth: 420 }}>
-          <h2>????? ??????</h2>
+          <h2>Login</h2>
           <form onSubmit={login}>
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
             <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" />
-            <button type="submit">????</button>
+            <button type="submit">Sign In</button>
           </form>
-          <p className="small">???? ???????: admin@zerovape.com / Admin@12345</p>
+          <p className="small">Default admin: admin@zerovape.com / Admin@12345</p>
         </section>
       ) : (
         <>
           <div className="card">
-            <h3>???????? ??????</h3>
+            <h3>User Information</h3>
             <p>
               {user?.full_name} - {user?.email} - <b>{user?.role}</b>
             </p>
@@ -242,12 +270,12 @@ export default function HomePage() {
               <input placeholder="DataForSEO Password" type="password" value={settings.dataforseo_password} onChange={(e) => setSettings((s) => ({ ...s, dataforseo_password: e.target.value }))} disabled={!isAdmin} />
               <input placeholder="AI Provider" value={settings.ai_provider} onChange={(e) => setSettings((s) => ({ ...s, ai_provider: e.target.value }))} disabled={!isAdmin} />
               <input placeholder="AI API Key" value={settings.ai_api_key} onChange={(e) => setSettings((s) => ({ ...s, ai_api_key: e.target.value }))} disabled={!isAdmin} />
-              <button onClick={saveSettings} disabled={!isAdmin}>??? ?????????</button>
+              <button onClick={saveSettings} disabled={!isAdmin}>Save Settings</button>
             </section>
 
             <section className="card">
               <h2>Connection Tests</h2>
-              <button onClick={testConnections}>????? ?????</button>
+              <button onClick={testConnections}>Test Connections</button>
               {providers.map((item) => (
                 <div key={item.provider}>
                   <b>{item.provider}:</b>{' '}
@@ -259,20 +287,20 @@ export default function HomePage() {
 
             <section className="card">
               <h2>Performance Reports</h2>
-              <button onClick={runReport}>????? Performance Review</button>
-              <button className="secondary" onClick={loadReports}>????? ???????</button>
+              <button onClick={runReport}>Run Performance Review</button>
+              <button className="secondary" onClick={loadReports}>Load Reports</button>
               {reports.map((report) => (
                 <div key={report.id} style={{ marginBottom: 10, borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
                   <div>#{report.id} - {report.status}</div>
-                  <button onClick={() => loadReportDetails(report.id)}>??? ????????</button>
+                  <button onClick={() => loadReportDetails(report.id)}>View Details</button>
                 </div>
               ))}
             </section>
 
             <section className="card">
               <h2>Task Board</h2>
-              <button onClick={loadTasks}>????? ??????</button>
-              <button onClick={createTasksFromReport} disabled={!selectedReport}>????? ?? ??????? ??????</button>
+              <button onClick={loadTasks}>Load Tasks</button>
+              <button onClick={createTasksFromReport} disabled={!selectedReport}>Create Tasks from Selected Report</button>
               {tasks.map((task) => (
                 <div key={task.id} style={{ marginBottom: 8, borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
                   <div><b>{task.title}</b> - {task.status} - Score {task.priority_score}</div>
@@ -316,7 +344,7 @@ export default function HomePage() {
           {selectedReport ? (
             <section className="card">
               <h2>Report Details #{selectedReport.id}</h2>
-              <p>??????: <b>{selectedReport.status}</b></p>
+              <p>Status: <b>{selectedReport.status}</b></p>
               <p>markdown: {selectedReport.markdown_path || 'N/A'}</p>
               <pre>{selectedReport.result_json || 'No report body yet'}</pre>
             </section>
