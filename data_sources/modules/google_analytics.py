@@ -5,6 +5,8 @@ Fetches traffic, engagement, and conversion data from GA4 properties.
 """
 
 import os
+import json
+import tempfile
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -32,9 +34,10 @@ class GoogleAnalytics:
         """
         self.property_id = property_id or os.getenv('GA4_PROPERTY_ID')
         credentials_path = credentials_path or os.getenv('GA4_CREDENTIALS_PATH')
-        if credentials_path and not os.path.isabs(credentials_path):
-            project_root = Path(__file__).resolve().parents[2]
-            credentials_path = str((project_root / credentials_path).resolve())
+        credentials_path = self._resolve_credentials_path(
+            credentials_path=credentials_path,
+            json_env_var='GA4_CREDENTIALS_JSON',
+        )
 
         if not self.property_id:
             raise ValueError("GA4_PROPERTY_ID must be provided or set in environment")
@@ -49,6 +52,29 @@ class GoogleAnalytics:
         )
 
         self.client = BetaAnalyticsDataClient(credentials=credentials)
+
+    @staticmethod
+    def _resolve_credentials_path(credentials_path: Optional[str], json_env_var: str) -> Optional[str]:
+        if credentials_path and not os.path.isabs(credentials_path):
+            project_root = Path(__file__).resolve().parents[2]
+            credentials_path = str((project_root / credentials_path).resolve())
+
+        if credentials_path and os.path.exists(credentials_path):
+            return credentials_path
+
+        json_payload = os.getenv(json_env_var) or os.getenv('GOOGLE_CREDENTIALS_JSON')
+        if not json_payload:
+            return credentials_path
+
+        try:
+            parsed = json.loads(json_payload)
+        except Exception as exc:
+            raise ValueError(f'Invalid JSON in {json_env_var}: {exc}') from exc
+
+        temp_dir = Path(tempfile.gettempdir())
+        temp_path = temp_dir / 'ga4-credentials.json'
+        temp_path.write_text(json.dumps(parsed), encoding='utf-8')
+        return str(temp_path)
 
     def get_top_pages(
         self,
